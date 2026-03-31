@@ -70,7 +70,6 @@ local frameIndex = 1
 local currentFrame = nil
 local frameCount = 0
 local startTime = nil
-local targetFrameTime = 1 / fps
 local skippedFrames = 0
 
 function nextFrame()
@@ -83,31 +82,51 @@ function nextFrame()
         startTime = os.epoch("utc") / 1000
     end
     
-    -- Calculate which frame we should be on based on elapsed time
-    local currentTime = os.epoch("utc") / 1000
-    local elapsedTime = currentTime - startTime
-    local targetFrame = math.floor(elapsedTime / targetFrameTime) + 1
-    
-    -- Skip frames if we're falling behind
-    while frameCount < targetFrame - 1 and frameIndex <= #videoData do
-        -- Fast-forward through frames without rendering
-        local line = videoData[frameIndex]
-        frameIndex = frameIndex + 1
-        
-        if line ~= "=" then
-            -- Skip the rest of this frame's lines
-            for i = 2, height do
-                if frameIndex > #videoData then break end
-                if videoData[frameIndex] == "=" then break end
-                frameIndex = frameIndex + 1
-            end
-        end
-        frameCount = frameCount + 1
-        skippedFrames = skippedFrames + 1
+    -- Read timestamp for this frame
+    local timestampLine = videoData[frameIndex]
+    if not timestampLine or not timestampLine:match("^T:") then
+        return false
     end
     
-    -- Now render the current frame
+    local targetTimestamp = tonumber(timestampLine:match("^T:(%d+)")) / 1000  -- Convert ms to seconds
+    frameIndex = frameIndex + 1
+    
+    -- Calculate how long to wait
+    local currentTime = os.epoch("utc") / 1000
+    local elapsedTime = currentTime - startTime
+    local waitTime = targetTimestamp - elapsedTime
+    
+    -- If we're behind schedule, check if we should skip this frame
+    if waitTime < -0.1 then  -- More than 100ms behind
+        -- Skip this frame entirely
+        local line = videoData[frameIndex]
+        if line then
+            frameIndex = frameIndex + 1
+            if line ~= "=" then
+                -- Skip the rest of this frame's lines
+                for i = 2, height do
+                    if frameIndex > #videoData then break end
+                    local nextLine = videoData[frameIndex]
+                    if not nextLine or nextLine:match("^T:") then break end
+                    frameIndex = frameIndex + 1
+                end
+            end
+        end
+        skippedFrames = skippedFrames + 1
+        frameCount = frameCount + 1
+        return true
+    end
+    
+    -- Wait until it's time to display this frame
+    if waitTime > 0 then
+        os.sleep(waitTime)
+    end
+    
+    -- Now render the frame
     local line = videoData[frameIndex]
+    if not line then
+        return false
+    end
     frameIndex = frameIndex + 1
     
     -- Check if this is a duplicate frame marker
@@ -126,7 +145,7 @@ function nextFrame()
                 break
             end
             line = videoData[frameIndex]
-            if line == "=" then
+            if not line or line:match("^T:") then
                 break
             end
             table.insert(frameLines, line)
@@ -150,17 +169,8 @@ function nextFrame()
     
     frameCount = frameCount + 1
     
-    -- Sleep until next frame time, accounting for processing time
-    local nextFrameTime = startTime + (frameCount * targetFrameTime)
-    local now = os.epoch("utc") / 1000
-    local sleepTime = nextFrameTime - now
-    
-    if sleepTime > 0 then
-        os.sleep(sleepTime)
-    else
-        -- We're behind, yield briefly to prevent timeout
-        os.sleep(0)
-    end
+    -- Brief yield to prevent timeout
+    os.sleep(0)
     
     return true
 end
