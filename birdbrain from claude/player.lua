@@ -20,9 +20,16 @@ end
 
 print("Loading video data...")
 local videoData = {}
+local lineCount = 0
 for line in io.lines(videoFile) do
     table.insert(videoData, line)
+    lineCount = lineCount + 1
+    -- Yield every 100 lines to prevent "too long without yielding"
+    if lineCount % 100 == 0 then
+        os.sleep(0)
+    end
 end
+print("Loaded " .. lineCount .. " lines")
 
 -- Parse header
 local header = videoData[1]
@@ -94,8 +101,14 @@ function nextFrame()
             frameIndex = frameIndex + 1
         end
         
-        -- Parse and draw frame
+        -- Parse and draw frame (with yield for large frames)
         local frameData = table.concat(frameLines, "\n")
+        
+        -- Yield if processing large frame to prevent timeout
+        if #frameData > 5000 then
+            os.sleep(0)
+        end
+        
         currentFrame = paintutils.parseImage(frameData)
         
         if currentFrame then
