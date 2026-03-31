@@ -36,8 +36,26 @@ print("Total lines: " .. #videoData)
 
 table.remove(videoData, 1)
 
--- Set up monitor
-monitor.setTextScale(0.5)
+-- Set up monitor with auto-scaling
+local monitorWidth, monitorHeight = monitor.getSize()
+print("Monitor size: " .. monitorWidth .. "x" .. monitorHeight)
+
+-- Calculate best text scale to fit video on monitor
+local bestScale = 0.5
+for scale = 0.5, 5, 0.5 do
+    monitor.setTextScale(scale)
+    local w, h = monitor.getSize()
+    if w >= width and h >= height then
+        bestScale = scale
+        break
+    end
+end
+
+monitor.setTextScale(bestScale)
+print("Using text scale: " .. bestScale)
+print("Press any key to start...")
+os.pullEvent("key")
+
 term.redirect(monitor)
 term.clear()
 
