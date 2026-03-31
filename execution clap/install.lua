@@ -1,7 +1,7 @@
 local files = {
-    ["audio.dfpwm"] = "https://github.com/Pikachu4booo/cc-videos-not-for-you/raw/refs/heads/main/birdbrain%20from%20claude/audio.dfpwm",
-    ["player.lua"]   = "https://github.com/Pikachu4booo/cc-videos-not-for-you/raw/refs/heads/main/birdbrain%20from%20claude/player.lua",
-    ["video.nfv"]    = "https://github.com/Pikachu4booo/cc-videos-not-for-you/raw/refs/heads/main/birdbrain%20from%20claude/video.nfv"
+    ["audio.dfpwm"] = "https://github.com/Pikachu4booo/cc-videos-not-for-you/raw/refs/heads/main/execution%20clap/audio.dfpwm",
+    ["player.lua"]   = "https://github.com/Pikachu4booo/cc-videos-not-for-you/raw/refs/heads/main/execution%20clap/player.lua",
+    ["video.nfv"]    = "https://github.com/Pikachu4booo/cc-videos-not-for-you/raw/refs/heads/main/execution%20clap/video.nfv"
 }
 
 -- 1. Download all files
