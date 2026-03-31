@@ -63,23 +63,16 @@ print("Using text scale: " .. bestScale)
 print("Press any key to start...")
 os.pullEvent("key")
 
-term.redirect(monitor)
-term.clear()
-
 local frameIndex = 1
 local currentFrame = nil
 local frameCount = 0
 local startTime = nil
 local skippedFrames = 0
+local syncStartTime = nil  -- Shared start time for audio and video sync
 
 function nextFrame()
     if frameIndex > #videoData then
         return false
-    end
-    
-    -- Initialize start time on first frame
-    if not startTime then
-        startTime = os.epoch("utc") / 1000
     end
     
     -- Read timestamp for this frame
@@ -91,9 +84,14 @@ function nextFrame()
     local targetTimestamp = tonumber(timestampLine:match("^T:(%d+)")) / 1000  -- Convert ms to seconds
     frameIndex = frameIndex + 1
     
+    -- Wait for sync start if not set yet (first frame waits for audio to be ready)
+    while not syncStartTime do
+        os.sleep(0)
+    end
+    
     -- Calculate how long to wait
     local currentTime = os.epoch("utc") / 1000
-    local elapsedTime = currentTime - startTime
+    local elapsedTime = currentTime - syncStartTime
     local waitTime = targetTimestamp - elapsedTime
     
     -- If we're behind schedule, check if we should skip this frame
@@ -178,13 +176,18 @@ end
 function audioLoop()
     if not fs.exists(audioFile) then
         print("No audio file found, playing video only...")
+        syncStartTime = os.epoch("utc") / 1000  -- Set start time anyway
         return
     end
     
     if not speaker then
         print("No speaker found, playing video only...")
+        syncStartTime = os.epoch("utc") / 1000  -- Set start time anyway
         return
     end
+    
+    -- Set synchronized start time just before audio begins
+    syncStartTime = os.epoch("utc") / 1000
     
     local decoder = dfpwm.make_decoder()
     for chunk in io.lines(audioFile, 16 * 1024) do
@@ -196,9 +199,42 @@ function audioLoop()
 end
 
 function videoLoop()
+    -- Pre-load and display first frame before sync starts
+    print("Pre-loading first frame...")
+    
+    -- Skip timestamp of first frame temporarily
+    local firstTimestamp = videoData[frameIndex]
+    frameIndex = frameIndex + 1
+    
+    -- Load first frame
+    local line = videoData[frameIndex]
+    frameIndex = frameIndex + 1
+    
+    if line and line ~= "=" then
+        local frameLines = {line}
+        for i = 2, height do
+            if frameIndex > #videoData then break end
+            line = videoData[frameIndex]
+            if not line or line:match("^T:") then break end
+            table.insert(frameLines, line)
+            frameIndex = frameIndex + 1
+        end
+        
+        local frameData = table.concat(frameLines, "\n")
+        currentFrame = paintutils.parseImage(frameData)
+        if currentFrame then
+            paintutils.drawImage(currentFrame, 1, 1)
+        end
+        frameCount = 1
+    end
+    
+    print("First frame loaded, waiting for audio sync...")
+    
+    -- Now play remaining frames
     while nextFrame() do
         -- Continue playing
     end
+    
     print("Video finished.")
     print("Frames played: " .. frameCount)
     if skippedFrames > 0 then
@@ -208,10 +244,12 @@ end
 
 -- Start audio and video playback together
 print("Starting playback...")
+term.redirect(monitor)
+term.clear()
 parallel.waitForAll(audioLoop, videoLoop)
 
 -- Clean up
+term.redirect(term.native())
 term.clear()
 term.setCursorPos(1, 1)
-term.redirect(term.native())
 print("Playback complete!")
