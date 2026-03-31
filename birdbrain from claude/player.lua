@@ -69,12 +69,44 @@ term.clear()
 local frameIndex = 1
 local currentFrame = nil
 local frameCount = 0
+local startTime = nil
+local targetFrameTime = 1 / fps
+local skippedFrames = 0
 
 function nextFrame()
     if frameIndex > #videoData then
         return false
     end
     
+    -- Initialize start time on first frame
+    if not startTime then
+        startTime = os.epoch("utc") / 1000
+    end
+    
+    -- Calculate which frame we should be on based on elapsed time
+    local currentTime = os.epoch("utc") / 1000
+    local elapsedTime = currentTime - startTime
+    local targetFrame = math.floor(elapsedTime / targetFrameTime) + 1
+    
+    -- Skip frames if we're falling behind
+    while frameCount < targetFrame - 1 and frameIndex <= #videoData do
+        -- Fast-forward through frames without rendering
+        local line = videoData[frameIndex]
+        frameIndex = frameIndex + 1
+        
+        if line ~= "=" then
+            -- Skip the rest of this frame's lines
+            for i = 2, height do
+                if frameIndex > #videoData then break end
+                if videoData[frameIndex] == "=" then break end
+                frameIndex = frameIndex + 1
+            end
+        end
+        frameCount = frameCount + 1
+        skippedFrames = skippedFrames + 1
+    end
+    
+    -- Now render the current frame
     local line = videoData[frameIndex]
     frameIndex = frameIndex + 1
     
@@ -117,7 +149,19 @@ function nextFrame()
     end
     
     frameCount = frameCount + 1
-    os.sleep(1 / fps)
+    
+    -- Sleep until next frame time, accounting for processing time
+    local nextFrameTime = startTime + (frameCount * targetFrameTime)
+    local now = os.epoch("utc") / 1000
+    local sleepTime = nextFrameTime - now
+    
+    if sleepTime > 0 then
+        os.sleep(sleepTime)
+    else
+        -- We're behind, yield briefly to prevent timeout
+        os.sleep(0)
+    end
+    
     return true
 end
 
@@ -145,10 +189,15 @@ function videoLoop()
     while nextFrame() do
         -- Continue playing
     end
-    print("Video finished. Played " .. frameCount .. " frames.")
+    print("Video finished.")
+    print("Frames played: " .. frameCount)
+    if skippedFrames > 0 then
+        print("Frames skipped for sync: " .. skippedFrames)
+    end
 end
 
--- Play video and audio in parallel
+-- Start audio and video playback together
+print("Starting playback...")
 parallel.waitForAll(audioLoop, videoLoop)
 
 -- Clean up
