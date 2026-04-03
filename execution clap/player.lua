@@ -48,18 +48,27 @@ local monitorWidth, monitorHeight = monitor.getSize()
 print("Monitor size: " .. monitorWidth .. "x" .. monitorHeight)
 
 -- Calculate best text scale to fit video on monitor
-local bestScale = 0.5
-for scale = 0.5, 5, 0.5 do
-    monitor.setTextScale(scale)
-    local w, h = monitor.getSize()
-    if w >= width and h >= height then
-        bestScale = scale
-        break
-    end
+-- local bestScale = 0.5
+-- for scale = 0.5, 5, 0.5 do
+--     monitor.setTextScale(scale)
+--     local w, h = monitor.getSize()
+--     if w >= width and h >= height then
+--         bestScale = scale
+--         break
+--     end
+-- end
+
+print("Enter text scale:")
+local textScale = tonumber(read())
+
+if textScale then
+    monitor.setTextScale(textScale)
+    print("Using text scale: " .. textScale)
+else
+    print("Invalid input. Using default text scale.")
+    monitor.setTextScale(0.5)
 end
 
-monitor.setTextScale(bestScale)
-print("Using text scale: " .. bestScale)
 print("Press any key to start...")
 os.pullEvent("key")
 
